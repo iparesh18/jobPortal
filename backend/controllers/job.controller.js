@@ -1,0 +1,268 @@
+import { Job } from "../models/job.model.js";
+
+// ===============================
+// ADMIN - POST JOB
+// ===============================
+export const postJob = async (req, res) => {
+    try {
+
+        const {
+            title,
+            description,
+            requirements,
+            salary,
+            location,
+            jobType,
+            experienceLevel,
+            position,
+            companyId
+        } = req.body;
+
+        const userId = req.id;
+
+        if (
+            !title ||
+            !description ||
+            !requirements ||
+            !salary ||
+            !location ||
+            !jobType ||
+            experienceLevel === undefined ||
+            !position ||
+            !companyId
+        ) {
+            return res.status(400).json({
+                message: "Something is missing.",
+                success: false
+            });
+        }
+
+        const job = await Job.create({
+            title,
+            description,
+            requirements: requirements ? requirements.split(",") : [],
+            salary: Number(salary), // MUST be number (LPA)
+            location,
+            jobType,
+            experienceLevel: Number(experienceLevel),
+            position: Number(position),
+            company: companyId,
+            created_by: userId
+        });
+
+        return res.status(201).json({
+            message: "New job created successfully.",
+            success: true,
+            job
+        });
+
+    } catch (error) {
+        console.log("POST JOB ERROR:", error);
+        return res.status(500).json({
+            message: "Server error",
+            success: false
+        });
+    }
+};
+
+
+// ===============================
+// STUDENT - GET ALL JOBS (FILTER ENABLED)
+// ===============================
+export const getAllJobs = async (req, res) => {
+    try {
+
+        const {
+            keyword = "",
+            location,
+            industry,
+            minSalary,
+            maxSalary
+        } = req.query;
+
+        let query = {};
+
+        // 🔍 keyword search
+        if (keyword) {
+            query.$or = [
+                { title: { $regex: keyword, $options: "i" } },
+                { description: { $regex: keyword, $options: "i" } }
+            ];
+        }
+
+        // 📍 location filter
+        if (location) {
+            query.location = { $regex: location, $options: "i" };
+        }
+
+        // 🏢 industry filter (based on title)
+        if (industry) {
+            query.title = { $regex: industry, $options: "i" };
+        }
+
+        // 💰 salary filter (LPA)
+        if (minSalary && maxSalary) {
+            query.salary = {
+                $gte: Number(minSalary),
+                $lte: Number(maxSalary)
+            };
+        }
+
+        const jobs = await Job.find(query)
+            .populate({ path: "company" })
+            .sort({ createdAt: -1 });
+
+        return res.status(200).json({
+            jobs,
+            success: true
+        });
+
+    } catch (error) {
+        console.log("GET ALL JOB ERROR:", error);
+        return res.status(500).json({
+            message: "Server error",
+            success: false
+        });
+    }
+};
+
+
+// ===============================
+// GET JOB BY ID
+// ===============================
+export const getJobById = async (req, res) => {
+    try {
+        const jobId = req.params.id;
+
+        const job = await Job.findById(jobId)
+            .populate({ path: "applications" });
+
+        if (!job) {
+            return res.status(404).json({
+                message: "Job not found.",
+                success: false
+            });
+        }
+
+        return res.status(200).json({
+            job,
+            success: true
+        });
+
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false });
+    }
+};
+
+
+// ===============================
+// ADMIN - GET ADMIN JOBS
+// ===============================
+export const getAdminJobs = async (req, res) => {
+    try {
+
+        const adminId = req.id;
+
+        const jobs = await Job.find({ created_by: adminId })
+            .populate({ path: "company" })
+            .sort({ createdAt: -1 });
+
+        return res.status(200).json({
+            jobs,
+            success: true
+        });
+
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false });
+    }
+};
+
+
+// ===============================
+// ADMIN - UPDATE JOB
+// ===============================
+export const updateJob = async (req, res) => {
+    try {
+        const jobId = req.params.id;
+
+        const {
+            title,
+            description,
+            requirements,
+            salary,
+            location,
+            jobType,
+            experienceLevel,
+            position
+        } = req.body;
+
+        const updatedJob = await Job.findByIdAndUpdate(
+            jobId,
+            {
+                title,
+                description,
+                requirements: requirements ? requirements.split(",") : [],
+                salary: Number(salary),
+                location,
+                jobType,
+                experienceLevel: Number(experienceLevel),
+                position: Number(position)
+            },
+            { new: true }
+        );
+
+        if (!updatedJob) {
+            return res.status(404).json({
+                message: "Job not found",
+                success: false
+            });
+        }
+
+        return res.status(200).json({
+            message: "Job updated successfully",
+            success: true,
+            job: updatedJob
+        });
+
+    } catch (error) {
+        console.log("UPDATE JOB ERROR:", error);
+        return res.status(500).json({
+            message: "Server error",
+            success: false
+        });
+    }
+};
+
+
+// ===============================
+// ADMIN - DELETE JOB
+// ===============================
+export const deleteJob = async (req, res) => {
+    try {
+
+        const jobId = req.params.id;
+
+        const job = await Job.findByIdAndDelete(jobId);
+
+        if (!job) {
+            return res.status(404).json({
+                message: "Job not found",
+                success: false
+            });
+        }
+
+        return res.status(200).json({
+            message: "Job deleted successfully",
+            success: true
+        });
+
+    } catch (error) {
+        console.log("DELETE JOB ERROR:", error);
+        return res.status(500).json({
+            message: "Server error",
+            success: false
+        });
+    }
+};
