@@ -1,4 +1,6 @@
 import { Job } from "../models/job.model.js";
+import redis from "../utils/redis.js";
+
 
 // ===============================
 // ADMIN - POST JOB
@@ -37,6 +39,8 @@ export const postJob = async (req, res) => {
             });
         }
 
+        await redis.flushall(); // FLUSH CACHE
+
         const job = await Job.create({
             title,
             description,
@@ -71,18 +75,27 @@ export const postJob = async (req, res) => {
 // ===============================
 export const getAllJobs = async (req, res) => {
     try {
-
         const {
             keyword = "",
-            location,
-            industry,
-            minSalary,
-            maxSalary
+            location = "",
+            industry = "",
+            minSalary = "",
+            maxSalary = ""
         } = req.query;
+
+        const cacheKey = `jobs:${keyword}:${location}:${industry}:${minSalary}:${maxSalary}`;
+
+        // 🔍 CACHE CHECK
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+            console.log("⚡ CACHE HIT");
+            return res.status(200).json(JSON.parse(cached));
+        }
+
+        console.log("🐢 CACHE MISS");
 
         let query = {};
 
-        // 🔍 keyword search
         if (keyword) {
             query.$or = [
                 { title: { $regex: keyword, $options: "i" } },
@@ -90,17 +103,14 @@ export const getAllJobs = async (req, res) => {
             ];
         }
 
-        // 📍 location filter
         if (location) {
             query.location = { $regex: location, $options: "i" };
         }
 
-        // 🏢 industry filter (based on title)
         if (industry) {
             query.title = { $regex: industry, $options: "i" };
         }
 
-        // 💰 salary filter (LPA)
         if (minSalary && maxSalary) {
             query.salary = {
                 $gte: Number(minSalary),
@@ -109,23 +119,21 @@ export const getAllJobs = async (req, res) => {
         }
 
         const jobs = await Job.find(query)
-            .populate({ path: "company" })
+            .populate("company")
             .sort({ createdAt: -1 });
 
-        return res.status(200).json({
-            jobs,
-            success: true
-        });
+        const response = { jobs, success: true };
+
+        // ⏳ TTL = 60 sec
+        await redis.set(cacheKey, JSON.stringify(response), "EX", 60);
+
+        return res.status(200).json(response);
 
     } catch (error) {
-        console.log("GET ALL JOB ERROR:", error);
-        return res.status(500).json({
-            message: "Server error",
-            success: false
-        });
+        console.log(error);
+        return res.status(500).json({ success: false });
     }
 };
-
 
 // ===============================
 // GET JOB BY ID
@@ -134,20 +142,31 @@ export const getJobById = async (req, res) => {
     try {
         const jobId = req.params.id;
 
+        const cacheKey = `job:${jobId}`;
+
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+            console.log("⚡ JOB CACHE HIT");
+            return res.status(200).json(JSON.parse(cached));
+        }
+
+        console.log("🐢 JOB CACHE MISS");
+
         const job = await Job.findById(jobId)
-            .populate({ path: "applications" });
+            .populate("applications");
 
         if (!job) {
             return res.status(404).json({
-                message: "Job not found.",
+                message: "Job not found",
                 success: false
             });
         }
 
-        return res.status(200).json({
-            job,
-            success: true
-        });
+        const response = { job, success: true };
+
+        await redis.set(cacheKey, JSON.stringify(response), "EX", 60);
+
+        return res.status(200).json(response);
 
     } catch (error) {
         console.log(error);
@@ -220,6 +239,10 @@ export const updateJob = async (req, res) => {
             });
         }
 
+        // Invalidate cache
+        await redis.del(`job:${jobId}`);
+        await redis.flushall();
+
         return res.status(200).json({
             message: "Job updated successfully",
             success: true,
@@ -243,6 +266,10 @@ export const deleteJob = async (req, res) => {
     try {
 
         const jobId = req.params.id;
+
+        // Invalidate cache
+        await redis.del(`job:${jobId}`);
+        await redis.flushall();
 
         const job = await Job.findByIdAndDelete(jobId);
 

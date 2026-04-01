@@ -3,6 +3,8 @@ import { RadioGroup, RadioGroupItem } from './ui/radio-group'
 import { Label } from './ui/label'
 import { useDispatch } from 'react-redux'
 import { setSearchedQuery } from '@/redux/jobSlice'
+import { ChevronDown, Filter, X } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 const fitlerData = [
     {
@@ -24,10 +26,9 @@ const fitlerData = [
 ]
 
 const FilterCard = () => {
-
     const dispatch = useDispatch()
     const [selectedValues, setSelectedValues] = useState({})
-    const [openSections, setOpenSections] = useState({})
+    const [openSections, setOpenSections] = useState({ 0: true, 1: true, 2: true })
 
     const toggleSection = (index) => {
         setOpenSections(prev => ({
@@ -37,10 +38,7 @@ const FilterCard = () => {
     }
 
     const changeHandler = (sectionIndex, value) => {
-
         let parsedValue = value
-
-        // If salary section, convert string back to object
         if (fitlerData[sectionIndex].fitlerType === "Salary") {
             parsedValue = JSON.parse(value)
         }
@@ -59,79 +57,97 @@ const FilterCard = () => {
         dispatch(setSearchedQuery({}))
     }
 
-    return (
-        <div className='w-full bg-white p-3 rounded-md'>
+    const hasFilters = Object.keys(selectedValues).length > 0;
 
-            <div className='flex justify-between items-center'>
-                <h1 className='font-bold text-lg'>Filter Jobs</h1>
-                
+    return (
+        <div className='w-full bg-white p-6 rounded-3xl border border-border/50 shadow-sm'>
+            <div className='flex justify-between items-center mb-6'>
+                <div className='flex items-center gap-2'>
+                    <div className='p-2 bg-primary/10 text-primary rounded-lg'>
+                        <Filter size={18} />
+                    </div>
+                    <h1 className='font-bold text-xl'>Filters</h1>
+                </div>
+                {hasFilters && (
+                    <button
+                        onClick={clearFilters}
+                        className='text-xs font-bold text-destructive hover:bg-destructive/10 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1'
+                    >
+                        <X size={14} />
+                        Reset
+                    </button>
+                )}
             </div>
 
-            <hr className='mt-3 mb-2' />
-
-            {
-                fitlerData.map((data, index) => (
-
-                    <div key={index} className='mb-2 border-b pb-2'>
-
-                        <div
-                            className='cursor-pointer font-semibold py-2 flex justify-between items-center'
+            <div className='space-y-4'>
+                {fitlerData.map((data, index) => (
+                    <div key={index} className='border-b border-border/40 pb-4 last:border-none last:pb-0'>
+                        <button
+                            className='w-full flex justify-between items-center py-2 group'
                             onClick={() => toggleSection(index)}
                         >
-                            <span>{data.fitlerType}</span>
-                            <span className={`transition-transform duration-200 ${openSections[index] ? "rotate-180" : ""}`}>
-                                ▼
+                            <span className='font-bold text-sm text-foreground group-hover:text-primary transition-colors uppercase tracking-wider'>
+                                {data.fitlerType}
                             </span>
-                        </div>
-
-                        <div className={`overflow-hidden transition-all duration-200 ${
-                            openSections[index]
-                                ? "max-h-40 opacity-100"
-                                : "max-h-0 opacity-0"
-                        }`}>
-
-                            <RadioGroup
-                                value={
-                                    data.fitlerType === "Salary"
-                                        ? JSON.stringify(selectedValues[index] || "")
-                                        : selectedValues[index] || ""
-                                }
-                                onValueChange={(value) => changeHandler(index, value)}
+                            <motion.div
+                                animate={{ rotate: openSections[index] ? 180 : 0 }}
+                                transition={{ duration: 0.2 }}
+                                className='text-muted-foreground group-hover:text-primary transition-colors'
                             >
-                                {
-                                    data.array.map((item, idx) => {
+                                <ChevronDown size={18} />
+                            </motion.div>
+                        </button>
 
-                                        const isSalary = data.fitlerType === "Salary"
-                                        const displayValue = isSalary ? item.label : item
-                                        const radioValue = isSalary ? JSON.stringify(item) : item
-                                        const itemId = `id${index}-${idx}`
+                        <AnimatePresence>
+                            {openSections[index] && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className='overflow-hidden'
+                                >
+                                    <RadioGroup
+                                        className="pt-2 space-y-3"
+                                        value={
+                                            data.fitlerType === "Salary"
+                                                ? JSON.stringify(selectedValues[index] || "")
+                                                : selectedValues[index] || ""
+                                        }
+                                        onValueChange={(value) => changeHandler(index, value)}
+                                    >
+                                        {data.array.map((item, idx) => {
+                                            const isSalary = data.fitlerType === "Salary"
+                                            const displayValue = isSalary ? item.label : item
+                                            const radioValue = isSalary ? JSON.stringify(item) : item
+                                            const itemId = `id${index}-${idx}`
+                                            const isSelected = (data.fitlerType === "Salary" 
+                                                ? JSON.stringify(selectedValues[index]) === radioValue 
+                                                : selectedValues[index] === radioValue)
 
-                                        return (
-                                            <div key={itemId} className='flex items-center space-x-2 my-2'>
-                                                <RadioGroupItem
-                                                    value={radioValue}
-                                                    id={itemId}
-                                                />
-                                                <Label htmlFor={itemId}>
-                                                    {displayValue}
-                                                </Label>
-                                            </div>
-                                        )
-                                    })
-                                }
-                            </RadioGroup>
-
-                        </div>
-
+                                            return (
+                                                <div key={itemId} className='flex items-center space-x-3 group/item'>
+                                                    <RadioGroupItem
+                                                        value={radioValue}
+                                                        id={itemId}
+                                                        className="border-border text-primary focus:ring-primary h-4 w-4"
+                                                    />
+                                                    <Label 
+                                                        htmlFor={itemId} 
+                                                        className={`text-sm font-medium cursor-pointer transition-colors ${isSelected ? 'text-primary font-bold' : 'text-muted-foreground group-hover/item:text-foreground'}`}
+                                                    >
+                                                        {displayValue}
+                                                    </Label>
+                                                </div>
+                                            )
+                                        })}
+                                    </RadioGroup>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
-                ))
-            }
-<button
-                    onClick={clearFilters}
-                    className='text-sm text-red-500 hover:underline'
-                >
-                    No Filter
-                </button>
+                ))}
+            </div>
         </div>
     )
 }
