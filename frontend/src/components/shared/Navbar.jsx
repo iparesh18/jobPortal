@@ -158,6 +158,20 @@ const Navbar = () => {
                     </NavLink>
                   </li>
                 )}
+                {user && user.role === "student" && (
+                  <li>
+                    <NavLink
+                      to="/ai-suggestions"
+                      className={({ isActive }) =>
+                        `text-sm transition-colors hover:text-primary ${
+                          isActive ? "text-primary font-semibold" : "text-muted-foreground"
+                        }`
+                      }
+                    >
+                      AI Suggestions
+                    </NavLink>
+                  </li>
+                )}
               </>
             )}
           </ul>

@@ -6,6 +6,17 @@ import { MapPin, Briefcase, DollarSign } from "lucide-react";
 
 const LatestJobCards = ({ job }) => {
   const navigate = useNavigate();
+
+  const requirementsList = Array.isArray(job?.requirements)
+    ? job.requirements
+    : typeof job?.requirements === "string"
+      ? job.requirements.split(/,|\n/)
+      : [];
+
+  const cleanRequirements = requirementsList
+    .map((req) => String(req || "").trim())
+    .filter(Boolean);
+
   return (
     <motion.div
       whileHover={{ y: -8, scale: 1.02 }}
@@ -46,6 +57,19 @@ const LatestJobCards = ({ job }) => {
           {job?.position} Openings
         </Badge>
       </div>
+
+      {cleanRequirements.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {cleanRequirements.slice(0, 4).map((req, idx) => (
+            <Badge
+              key={`${job?._id}-latest-req-${idx}`}
+              className="bg-violet-50 text-violet-700 hover:bg-violet-100 border-none px-2.5 py-1 font-bold text-[10px] uppercase tracking-wider transition-colors"
+            >
+              {req}
+            </Badge>
+          ))}
+        </div>
+      )}
     </motion.div>
   );
 };

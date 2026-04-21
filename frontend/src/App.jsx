@@ -17,6 +17,7 @@ import ProtectedRoute from './components/admin/ProtectedRoute'
 import EditJob from './components/admin/EditJob'
 import SavedJobs from "./components/SavedJobs";
 import NotFound from './components/NotFound'
+import AISuggestions from './components/AISuggestions'
 
 const appRouter = createBrowserRouter([
   {
@@ -54,6 +55,10 @@ const appRouter = createBrowserRouter([
   {
     path: "/profile",
     element: <Profile />
+  },
+  {
+    path: "/ai-suggestions",
+    element: <AISuggestions />
   },
   // admin ke liye yha se start hoga
   {

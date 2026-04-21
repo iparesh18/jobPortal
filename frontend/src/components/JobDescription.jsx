@@ -21,6 +21,16 @@ const JobDescription = () => {
     const jobId = params.id;
     const dispatch = useDispatch();
 
+    const requirementsList = Array.isArray(singleJob?.requirements)
+        ? singleJob.requirements
+        : typeof singleJob?.requirements === "string"
+            ? singleJob.requirements.split(/,|\n/)
+            : [];
+
+    const cleanRequirements = requirementsList
+        .map((req) => String(req || "").trim())
+        .filter(Boolean);
+
     const applyJobHandler = async () => {
         try {
             const res = await axios.get(`${APPLICATION_API_END_POINT}/apply/${jobId}`, { withCredentials: true });
@@ -115,6 +125,21 @@ const JobDescription = () => {
                                     <span className="h-6 w-1 rounded-full bg-primary inline-block"></span>
                                     Key Requirements
                                 </h3>
+                                {cleanRequirements.length > 0 ? (
+                                    <div className="flex flex-wrap gap-2 mb-6">
+                                        {cleanRequirements.map((req, idx) => (
+                                            <Badge
+                                                key={`${singleJob?._id}-desc-req-${idx}`}
+                                                className="bg-violet-50 text-violet-700 hover:bg-violet-100 border-none px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider"
+                                            >
+                                                {req}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground mb-6">No specific requirements listed for this job.</p>
+                                )}
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="flex items-start gap-3 p-4 rounded-2xl bg-secondary/30 border border-border/40">
                                         <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-white shadow-sm text-primary">

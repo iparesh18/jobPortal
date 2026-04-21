@@ -1,5 +1,21 @@
 import { Job } from "../models/job.model.js";
 import redis from "../utils/redis.js";
+import { upsertJobVector, deleteJobVector } from "../services/ai.service.js";
+
+const normalizeRequirements = (requirements) => {
+    if (Array.isArray(requirements)) {
+        return requirements.map((item) => String(item || "").trim()).filter(Boolean);
+    }
+
+    if (typeof requirements === "string") {
+        return requirements
+            .split(/,|\n/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+    }
+
+    return [];
+};
 
 
 // ===============================
@@ -41,10 +57,12 @@ export const postJob = async (req, res) => {
 
         await redis.flushall(); // FLUSH CACHE
 
+        const parsedRequirements = normalizeRequirements(requirements);
+
         const job = await Job.create({
             title,
             description,
-            requirements: requirements ? requirements.split(",") : [],
+            requirements: parsedRequirements,
             salary: Number(salary), // MUST be number (LPA)
             location,
             jobType,
@@ -53,6 +71,13 @@ export const postJob = async (req, res) => {
             company: companyId,
             created_by: userId
         });
+
+        try {
+            await job.populate("company");
+            await upsertJobVector(job);
+        } catch (vectorError) {
+            console.log("JOB VECTOR UPSERT ERROR:", vectorError?.message || vectorError);
+        }
 
         return res.status(201).json({
             message: "New job created successfully.",
@@ -217,12 +242,14 @@ export const updateJob = async (req, res) => {
             position
         } = req.body;
 
+        const parsedRequirements = normalizeRequirements(requirements);
+
         const updatedJob = await Job.findByIdAndUpdate(
             jobId,
             {
                 title,
                 description,
-                requirements: requirements ? requirements.split(",") : [],
+            requirements: parsedRequirements,
                 salary: Number(salary),
                 location,
                 jobType,
@@ -237,6 +264,13 @@ export const updateJob = async (req, res) => {
                 message: "Job not found",
                 success: false
             });
+        }
+
+        try {
+            await updatedJob.populate("company");
+            await upsertJobVector(updatedJob);
+        } catch (vectorError) {
+            console.log("JOB VECTOR RE-UPSERT ERROR:", vectorError?.message || vectorError);
         }
 
         // Invalidate cache
@@ -278,6 +312,12 @@ export const deleteJob = async (req, res) => {
                 message: "Job not found",
                 success: false
             });
+        }
+
+        try {
+            await deleteJobVector(jobId);
+        } catch (vectorError) {
+            console.log("JOB VECTOR DELETE ERROR:", vectorError?.message || vectorError);
         }
 
         return res.status(200).json({

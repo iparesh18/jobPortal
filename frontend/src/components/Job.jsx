@@ -58,6 +58,16 @@ const Job = ({ job }) => {
         return Math.floor(timeDifference / (1000 * 24 * 60 * 60));
     };
 
+    const requirementsList = Array.isArray(job?.requirements)
+        ? job.requirements
+        : typeof job?.requirements === "string"
+            ? job.requirements.split(/,|\n/)
+            : [];
+
+    const cleanRequirements = requirementsList
+        .map((req) => String(req || "").trim())
+        .filter(Boolean);
+
     return (
         <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -114,6 +124,19 @@ const Job = ({ job }) => {
                         {job?.position} Openings
                     </div>
                 </div>
+
+                {cleanRequirements.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                        {cleanRequirements.slice(0, 4).map((req, idx) => (
+                            <Badge
+                                key={`${job?._id}-req-${idx}`}
+                                className="bg-violet-50 text-violet-700 hover:bg-violet-100 border-none px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider"
+                            >
+                                {req}
+                            </Badge>
+                        ))}
+                    </div>
+                )}
 
                 <div className="flex items-center justify-between pt-4 mt-2 border-t border-border/40">
                     <div className="text-[11px] font-bold text-muted-foreground/60 uppercase tracking-wider flex items-center gap-2">

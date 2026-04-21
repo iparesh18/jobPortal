@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import Navbar from './shared/Navbar'
 import { Avatar, AvatarImage } from './ui/avatar'
 import { Button } from './ui/button'
-import { Contact, Mail, Pen, FileText, Globe, Award, Briefcase } from 'lucide-react'
+import { Contact, Mail, Pen, FileText, Globe, Award, Briefcase, Sparkles } from 'lucide-react'
 import { Badge } from './ui/badge'
 import { Label } from './ui/label'
 import AppliedJobTable from './AppliedJobTable'
@@ -11,11 +11,13 @@ import { useSelector } from 'react-redux'
 import useGetAppliedJobs from '@/hooks/useGetAppliedJobs'
 import Breadcrumbs from './shared/Breadcrumbs';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom'
 
 const Profile = () => {
     useGetAppliedJobs();
     const [open, setOpen] = useState(false);
     const { user } = useSelector(store => store.auth);
+    const navigate = useNavigate();
 
     return (
         <div className="min-h-screen bg-[#F5F6FA]">
@@ -108,6 +110,13 @@ const Profile = () => {
                                 <Award size={20} className='text-primary' />
                                 <h2 className='font-extrabold text-lg tracking-tight'>Professional Skills</h2>
                             </div>
+                            <Button
+                                onClick={() => navigate('/ai-suggestions')}
+                                className='mb-5 rounded-xl font-bold'
+                            >
+                                <Sparkles size={16} className='mr-2' />
+                                View AI Job Suggestions
+                            </Button>
                             <div className='flex flex-wrap gap-2'>
                                 {user?.profile?.skills?.length > 0 ? (
                                     user.profile.skills.map((item, index) => (
