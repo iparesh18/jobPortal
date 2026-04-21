@@ -1,6 +1,7 @@
 import { Job } from "../models/job.model.js";
 import redis from "../utils/redis.js";
 import { upsertJobVector, deleteJobVector } from "../services/ai.service.js";
+import { User } from "../models/user.model.js";
 
 const normalizeRequirements = (requirements) => {
     if (Array.isArray(requirements)) {
@@ -15,6 +16,20 @@ const normalizeRequirements = (requirements) => {
     }
 
     return [];
+};
+
+const escapeRegex = (value = "") => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const invalidateJobsCache = async () => {
+    const keys = await redis.keys("jobs:*");
+    if (keys.length) {
+        await redis.del(...keys);
+    }
+};
+
+const requireRecruiter = async (userId) => {
+    const user = await User.findById(userId).select("role");
+    return user?.role === "recruiter";
 };
 
 
@@ -38,6 +53,14 @@ export const postJob = async (req, res) => {
 
         const userId = req.id;
 
+        const isRecruiter = await requireRecruiter(userId);
+        if (!isRecruiter) {
+            return res.status(403).json({
+                message: "Only recruiters can post jobs.",
+                success: false,
+            });
+        }
+
         if (
             !title ||
             !description ||
@@ -55,7 +78,7 @@ export const postJob = async (req, res) => {
             });
         }
 
-        await redis.flushall(); // FLUSH CACHE
+        await invalidateJobsCache();
 
         const parsedRequirements = normalizeRequirements(requirements);
 
@@ -105,8 +128,14 @@ export const getAllJobs = async (req, res) => {
             location = "",
             industry = "",
             minSalary = "",
-            maxSalary = ""
+            maxSalary = "",
+            page = 1,
+            limit = 20,
         } = req.query;
+
+        const pageNumber = Math.max(1, Number(page) || 1);
+        const pageSize = Math.min(50, Math.max(1, Number(limit) || 20));
+        const skip = (pageNumber - 1) * pageSize;
 
         const cacheKey = `jobs:${keyword}:${location}:${industry}:${minSalary}:${maxSalary}`;
 
@@ -122,18 +151,19 @@ export const getAllJobs = async (req, res) => {
         let query = {};
 
         if (keyword) {
+            const safeKeyword = escapeRegex(keyword);
             query.$or = [
-                { title: { $regex: keyword, $options: "i" } },
-                { description: { $regex: keyword, $options: "i" } }
+                { title: { $regex: safeKeyword, $options: "i" } },
+                { description: { $regex: safeKeyword, $options: "i" } }
             ];
         }
 
         if (location) {
-            query.location = { $regex: location, $options: "i" };
+            query.location = { $regex: escapeRegex(location), $options: "i" };
         }
 
         if (industry) {
-            query.title = { $regex: industry, $options: "i" };
+            query.title = { $regex: escapeRegex(industry), $options: "i" };
         }
 
         if (minSalary && maxSalary) {
@@ -145,9 +175,22 @@ export const getAllJobs = async (req, res) => {
 
         const jobs = await Job.find(query)
             .populate("company")
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(pageSize);
 
-        const response = { jobs, success: true };
+        const total = await Job.countDocuments(query);
+
+        const response = {
+            jobs,
+            success: true,
+            pagination: {
+                page: pageNumber,
+                limit: pageSize,
+                total,
+                totalPages: Math.ceil(total / pageSize),
+            },
+        };
 
         // ⏳ TTL = 60 sec
         await redis.set(cacheKey, JSON.stringify(response), "EX", 60);
@@ -230,6 +273,15 @@ export const getAdminJobs = async (req, res) => {
 export const updateJob = async (req, res) => {
     try {
         const jobId = req.params.id;
+        const userId = req.id;
+
+        const isRecruiter = await requireRecruiter(userId);
+        if (!isRecruiter) {
+            return res.status(403).json({
+                message: "Only recruiters can update jobs.",
+                success: false,
+            });
+        }
 
         const {
             title,
@@ -244,12 +296,27 @@ export const updateJob = async (req, res) => {
 
         const parsedRequirements = normalizeRequirements(requirements);
 
+        const existingJob = await Job.findById(jobId);
+        if (!existingJob) {
+            return res.status(404).json({
+                message: "Job not found",
+                success: false
+            });
+        }
+
+        if (String(existingJob.created_by) !== String(userId)) {
+            return res.status(403).json({
+                message: "You can only update your own jobs.",
+                success: false,
+            });
+        }
+
         const updatedJob = await Job.findByIdAndUpdate(
             jobId,
             {
                 title,
                 description,
-            requirements: parsedRequirements,
+                requirements: parsedRequirements,
                 salary: Number(salary),
                 location,
                 jobType,
@@ -275,7 +342,7 @@ export const updateJob = async (req, res) => {
 
         // Invalidate cache
         await redis.del(`job:${jobId}`);
-        await redis.flushall();
+        await invalidateJobsCache();
 
         return res.status(200).json({
             message: "Job updated successfully",
@@ -300,19 +367,36 @@ export const deleteJob = async (req, res) => {
     try {
 
         const jobId = req.params.id;
+        const userId = req.id;
 
-        // Invalidate cache
-        await redis.del(`job:${jobId}`);
-        await redis.flushall();
+        const isRecruiter = await requireRecruiter(userId);
+        if (!isRecruiter) {
+            return res.status(403).json({
+                message: "Only recruiters can delete jobs.",
+                success: false,
+            });
+        }
 
-        const job = await Job.findByIdAndDelete(jobId);
-
-        if (!job) {
+        const existingJob = await Job.findById(jobId);
+        if (!existingJob) {
             return res.status(404).json({
                 message: "Job not found",
                 success: false
             });
         }
+
+        if (String(existingJob.created_by) !== String(userId)) {
+            return res.status(403).json({
+                message: "You can only delete your own jobs.",
+                success: false,
+            });
+        }
+
+        // Invalidate cache
+        await redis.del(`job:${jobId}`);
+        await invalidateJobsCache();
+
+        await Job.findByIdAndDelete(jobId);
 
         try {
             await deleteJobVector(jobId);

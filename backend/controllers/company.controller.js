@@ -35,6 +35,10 @@ export const registerCompany = async (req, res) => {
 
     } catch (error) {
         console.log(error);
+        return res.status(500).json({
+            message: "Server error",
+            success: false,
+        });
     }
 };
 
@@ -59,6 +63,10 @@ export const getCompany = async (req, res) => {
 
     } catch (error) {
         console.log(error);
+        return res.status(500).json({
+            message: "Server error",
+            success: false,
+        });
     }
 };
 
@@ -84,12 +92,34 @@ export const getCompanyById = async (req, res) => {
 
     } catch (error) {
         console.log(error);
+        return res.status(500).json({
+            message: "Server error",
+            success: false,
+        });
     }
 };
 
 
 export const updateCompany = async (req, res) => {
     try {
+        const companyId = req.params.id;
+        const userId = req.id;
+
+        const existingCompany = await Company.findById(companyId);
+        if (!existingCompany) {
+            return res.status(404).json({
+                message: "Company not found.",
+                success: false
+            });
+        }
+
+        if (String(existingCompany.userId) !== String(userId)) {
+            return res.status(403).json({
+                message: "You can only update your own company.",
+                success: false,
+            });
+        }
+
         const { name, description, website, location } = req.body;
  
         const file = req.file;
@@ -111,7 +141,7 @@ export const updateCompany = async (req, res) => {
         }
 
         const company = await Company.findByIdAndUpdate(
-            req.params.id,
+            companyId,
             updateData,
             { new: true }
         );
@@ -130,5 +160,9 @@ export const updateCompany = async (req, res) => {
 
     } catch (error) {
         console.log(error);
+        return res.status(500).json({
+            message: "Server error",
+            success: false,
+        });
     }
 };

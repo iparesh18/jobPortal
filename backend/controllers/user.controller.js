@@ -61,6 +61,10 @@ const user = await User.create({
     });
   } catch (error) {
     console.log(error);
+    return res.status(500).json({
+      message: "Server error",
+      success: false,
+    });
   }
 };
 
@@ -131,6 +135,10 @@ export const login = async (req, res) => {
       });
   } catch (error) {
     console.log(error);
+    return res.status(500).json({
+      message: "Server error",
+      success: false,
+    });
   }
 };
 
@@ -142,6 +150,10 @@ export const logout = async (req, res) => {
     });
   } catch (error) {
     console.log(error);
+    return res.status(500).json({
+      message: "Server error",
+      success: false,
+    });
   }
 };
 
@@ -179,7 +191,10 @@ export const updateProfile = async (req, res) => {
     let skillsArray;
 
     if (skills) {
-      skillsArray = skills.split(",");
+      skillsArray = skills
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
     }
 
     const userId = req.id;
@@ -222,5 +237,9 @@ export const updateProfile = async (req, res) => {
     });
   } catch (error) {
     console.log(error);
+    return res.status(500).json({
+      message: "Server error",
+      success: false,
+    });
   }
 };
