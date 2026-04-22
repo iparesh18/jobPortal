@@ -6,8 +6,7 @@ import { Button } from "../ui/button";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import { toast } from "sonner";
-
-const API = "http://localhost:8000/api/v1/job";
+import { JOB_API_END_POINT } from "@/utils/constant";
 
 const EditJob = () => {
   const { id } = useParams();
@@ -28,7 +27,7 @@ const EditJob = () => {
   useEffect(() => {
     const fetchJob = async () => {
       try {
-        const res = await axios.get(`${API}/get/${id}`, {
+        const res = await axios.get(`${JOB_API_END_POINT}/get/${id}`, {
           withCredentials: true
         });
 
@@ -67,7 +66,7 @@ const EditJob = () => {
     e.preventDefault();
     try {
       const res = await axios.put(
-        `${API}/update/${id}`,
+        `${JOB_API_END_POINT}/update/${id}`,
         jobData,
         { withCredentials: true }
       );
@@ -86,7 +85,7 @@ const EditJob = () => {
   const handleDelete = async () => {
     try {
       const res = await axios.delete(
-        `${API}/delete/${id}`, {
+        `${JOB_API_END_POINT}/delete/${id}`, {
           withCredentials: true
         }
       );

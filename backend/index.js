@@ -21,13 +21,20 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({extended:true}));
 app.use(cookieParser());
-// Allow frontend running on any localhost port (dev convenience)
+
+const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    process.env.FRONTEND_PREVIEW_URL,
+].filter(Boolean);
+
+// Allow frontend from configured origins and localhost during development.
 const corsOptions = {
     origin: (origin, callback) => {
         if (!origin) return callback(null, true); // allow curl/postman or same-origin
         try {
             const url = new URL(origin);
             if (url.hostname === 'localhost') return callback(null, true);
+            if (allowedOrigins.includes(origin)) return callback(null, true);
         } catch (e) {}
         callback(new Error('Not allowed by CORS'));
     },

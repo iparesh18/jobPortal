@@ -11,7 +11,7 @@ let aiClient = null;
 const getTextAiClient = () => {
     if (aiClient) return aiClient;
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_;
     if (!apiKey) return null;
 
     aiClient = new GoogleGenAI({ apiKey });

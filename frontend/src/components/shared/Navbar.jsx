@@ -25,7 +25,7 @@ const Navbar = () => {
     const fetchSavedJobs = async () => {
       try {
         const res = await axios.get(
-          "http://localhost:8000/api/v1/user/saved",
+          `${USER_API_END_POINT}/saved`,
           { withCredentials: true }
         );
 
@@ -200,7 +200,7 @@ const Navbar = () => {
                     <AvatarImage
                       src={
                         user?.profile?.profilePhoto
-                          ? `http://localhost:8000/${user.profile.profilePhoto}`
+                          ? user.profile.profilePhoto
                           : ""
                       }
                       alt="avatar"
@@ -220,7 +220,7 @@ const Navbar = () => {
                   <div className="space-y-1">
                     <div className="flex items-center gap-3 p-3 mb-2 rounded-xl bg-secondary/50">
                        <Avatar className="h-10 w-10 border border-primary/10">
-                        <AvatarImage src={user?.profile?.profilePhoto ? `http://localhost:8000/${user.profile.profilePhoto}` : ""} />
+                        <AvatarImage src={user?.profile?.profilePhoto || ""} />
                         <AvatarFallback className="bg-primary text-white">
                           {user?.fullname?.charAt(0)?.toUpperCase()}
                         </AvatarFallback>

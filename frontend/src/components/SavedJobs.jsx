@@ -18,6 +18,7 @@ import { setSavedJobs, removeSavedJob } from "@/redux/savedJobSlice";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import Breadcrumbs from "./shared/Breadcrumbs";
+import { USER_API_END_POINT } from "@/utils/constant";
 
 
 const SavedJobs = () => {
@@ -29,7 +30,7 @@ const SavedJobs = () => {
     const fetchSavedJobs = async () => {
       try {
         const res = await axios.get(
-          "http://localhost:8000/api/v1/user/saved",
+          `${USER_API_END_POINT}/saved`,
           { withCredentials: true }
         );
 
@@ -47,7 +48,7 @@ const SavedJobs = () => {
   const handleRemove = async (jobId) => {
     try {
       const res = await axios.delete(
-        `http://localhost:8000/api/v1/user/unsave/${jobId}`,
+        `${USER_API_END_POINT}/unsave/${jobId}`,
         { withCredentials: true }
       );
 

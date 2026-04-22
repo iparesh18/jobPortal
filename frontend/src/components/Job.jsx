@@ -9,6 +9,7 @@ import axios from "axios";
 import { toast } from "sonner";
 import { addSavedJob, removeSavedJob } from "@/redux/savedJobSlice";
 import { motion } from "framer-motion";
+import { USER_API_END_POINT } from "@/utils/constant";
 
 const Job = ({ job }) => {
     const navigate = useNavigate();
@@ -25,7 +26,7 @@ const Job = ({ job }) => {
         try {
             if (isSaved) {
                 const res = await axios.delete(
-                    `http://localhost:8000/api/v1/user/unsave/${job._id}`,
+                    `${USER_API_END_POINT}/unsave/${job._id}`,
                     { withCredentials: true }
                 );
 
@@ -35,7 +36,7 @@ const Job = ({ job }) => {
                 }
             } else {
                 const res = await axios.post(
-                    `http://localhost:8000/api/v1/user/save/${job._id}`,
+                    `${USER_API_END_POINT}/save/${job._id}`,
                     {},
                     { withCredentials: true }
                 );
