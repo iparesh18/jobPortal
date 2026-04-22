@@ -49,6 +49,9 @@ const exactAllowedOrigins = new Set(
         .filter(Boolean)
 );
 
+console.log("DEBUG - Allowed origins:", Array.from(exactAllowedOrigins));
+console.log("DEBUG - Raw allowed values:", rawAllowedOriginValues);
+
 const wildcardAllowedOriginRegex = rawAllowedOriginValues
     .filter((value) => value.includes("*"))
     .map((value) => {
@@ -64,12 +67,23 @@ const corsOptions = {
 
         try {
             const normalizedOrigin = toOrigin(origin);
+            console.log(`DEBUG - Incoming origin: "${origin}" -> normalized: "${normalizedOrigin}"`);
+            console.log(`DEBUG - Checking against allowed: ${Array.from(exactAllowedOrigins)}`);
+            
             const url = new URL(normalizedOrigin);
 
             if (url.hostname === 'localhost') return callback(null, true);
-            if (exactAllowedOrigins.has(normalizedOrigin)) return callback(null, true);
-            if (wildcardAllowedOriginRegex.some((regex) => regex.test(normalizedOrigin))) return callback(null, true);
-        } catch (e) {}
+            if (exactAllowedOrigins.has(normalizedOrigin)) {
+                console.log(`DEBUG - MATCH FOUND in exactAllowedOrigins`);
+                return callback(null, true);
+            }
+            if (wildcardAllowedOriginRegex.some((regex) => regex.test(normalizedOrigin))) {
+                console.log(`DEBUG - MATCH FOUND in wildcardRegex`);
+                return callback(null, true);
+            }
+        } catch (e) {
+            console.error(`DEBUG - Error in CORS check:`, e);
+        }
 
         console.log("CORS BLOCKED ORIGIN:", origin);
         callback(new Error('Not allowed by CORS'));
