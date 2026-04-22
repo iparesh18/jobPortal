@@ -71,11 +71,12 @@ export const getAppliedJobs = async (req,res) => {
             }
         });
 
-        // ✅ FIXED
+        // Return an empty list instead of 404 so frontend can reliably reset state per user.
         if(application.length === 0){
-            return res.status(404).json({
+            return res.status(200).json({
+                application: [],
                 message:"No Applications",
-                success:false
+                success:true
             })
         };
 

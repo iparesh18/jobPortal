@@ -10,6 +10,7 @@ import axios from "axios";
 import { USER_API_END_POINT } from "@/utils/constant";
 import { setUser } from "@/redux/authSlice";
 import { setSavedJobs } from "@/redux/savedJobSlice";
+import { setAllAppliedJobs } from "@/redux/jobSlice";
 import { toast } from "sonner";
 
 const Navbar = () => {
@@ -51,6 +52,7 @@ const Navbar = () => {
       if (res.data.success) {
         dispatch(setUser(null));
         dispatch(setSavedJobs([])); // clear saved jobs
+        dispatch(setAllAppliedJobs([]));
         navigate("/");
         toast.success(res.data.message);
       }

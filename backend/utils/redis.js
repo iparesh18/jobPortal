@@ -18,8 +18,20 @@ const createMemoryCache = () => {
       map.set(key, { value, exp });
       return "OK";
     },
-    async del(key) {
-      return map.delete(key) ? 1 : 0;
+    async del(...keys) {
+      let removed = 0;
+      for (const key of keys) {
+        if (map.delete(key)) removed++;
+      }
+      return removed;
+    },
+    async keys(pattern = "*") {
+      // simple glob pattern support for '*' only
+      if (pattern === "*") return Array.from(map.keys());
+      const regex = new RegExp(
+        '^' + pattern.split('*').map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$'
+      );
+      return Array.from(map.keys()).filter((k) => regex.test(k));
     },
     async flushall() {
       map.clear();
@@ -29,58 +41,83 @@ const createMemoryCache = () => {
 };
 
 let client = null;
+let initialized = false;
 const memoryCache = createMemoryCache();
 
-if (!process.env.REDIS_HOST) {
-  console.log("ℹ️ Redis not configured; using in-memory cache");
-  client = memoryCache;
-} else {
-  const redis = new Redis({
+const createRedisClient = () => {
+  const redisUrl = process.env.REDIS_URL;
+  if (redisUrl) {
+    return new Redis(redisUrl, { lazyConnect: true });
+  }
+
+  if (!process.env.REDIS_HOST) return null;
+
+  return new Redis({
     host: process.env.REDIS_HOST,
-    port: process.env.REDIS_PORT,
+    port: Number(process.env.REDIS_PORT) || 6379,
+    username: process.env.REDIS_USERNAME || undefined,
     password: process.env.REDIS_PASSWORD || undefined,
     lazyConnect: true,
   });
+};
 
-  let connected = false;
+const getClient = async () => {
+  if (initialized && client) return client;
+  if (initialized && !client) return memoryCache;
 
-  redis.on("connect", () => {
-    connected = true;
-    console.log("✅ Redis connected");
-    client = redis;
-  });
+  initialized = true;
+
+  const redis = createRedisClient();
+  if (!redis) {
+    console.log("ℹ️ Redis not configured; using in-memory cache");
+    client = null;
+    return memoryCache;
+  }
 
   redis.on("error", (err) => {
     console.error("❌ Redis error:", err.message || err);
-    if (!connected) {
-      console.log("ℹ️ Falling back to in-memory cache");
-      client = memoryCache;
-      try {
-        redis.disconnect();
-      } catch (e) {}
-    }
   });
 
-  // Try to connect quickly; if fails, fallback
-  redis.connect().catch((err) => {
+  try {
+    await redis.connect();
+    console.log("✅ Redis connected");
+    client = redis;
+    return client;
+  } catch (err) {
     console.error("❌ Redis connect failed:", err.message || err);
-    client = memoryCache;
-  });
-}
+    console.log("ℹ️ Falling back to in-memory cache");
+    client = null;
+    return memoryCache;
+  }
+};
 
 // Export a thin proxy that forwards to either redis client or memory cache
 const proxy = {
+  async init() {
+    await getClient();
+  },
   async get(key) {
-    return (client || memoryCache).get(key);
+    const target = await getClient();
+    return target.get(key);
   },
   async set(key, value, mode, ttl) {
-    return (client || memoryCache).set(key, value, mode, ttl);
+    const target = await getClient();
+    return target.set(key, value, mode, ttl);
   },
-  async del(key) {
-    return (client || memoryCache).del(key);
+  async del(...keys) {
+    const target = await getClient();
+    return target.del(...keys);
+  },
+  async keys(pattern) {
+    const target = await getClient();
+    if (typeof target.keys === 'function') return target.keys(pattern);
+    // fallback: emulate keys by scanning available keys via known API
+    // if no keys support, return empty
+    return [];
   },
   async flushall() {
-    return (client || memoryCache).flushall();
+    const target = await getClient();
+    return target.flushall();
   }
 };
 

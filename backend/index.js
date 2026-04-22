@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import connectDB from "./utils/db.js";
+import redis from "./utils/redis.js";
 import userRoute from "./routes/user.route.js";
 import companyRoute from "./routes/company.route.js";
 import jobRoute from "./routes/job.route.js";
@@ -54,6 +55,9 @@ if (globalThis.__server) {
 const startServer = () => {
     const server = app.listen(PORT, () => {
         connectDB();
+        redis.init().catch((error) => {
+            console.error("Redis init failed:", error?.message || error);
+        });
         console.log(`Server running at port ${PORT}`);
     });
 

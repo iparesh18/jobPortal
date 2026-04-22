@@ -7,11 +7,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 import useGetAllJobs from '@/hooks/useGetAllJobs';
 import Breadcrumbs from "./shared/Breadcrumbs";
 import { SearchIcon, Briefcase } from 'lucide-react';
+import { Button } from './ui/button';
 
 const Jobs = () => {
-    useGetAllJobs();
+    const [page, setPage] = useState(1);
+    const { loading, pagination } = useGetAllJobs({ page, limit: 10 });
     const { allJobs, searchedQuery } = useSelector(store => store.job);
     const [filterJobs, setFilterJobs] = useState(allJobs);
+
+    useEffect(() => {
+        setPage(1);
+    }, [searchedQuery]);
 
     useEffect(() => {
         if (!searchedQuery || Object.keys(searchedQuery).length === 0) {
@@ -31,6 +37,26 @@ const Jobs = () => {
         })
         setFilterJobs(filteredJobs)
     }, [allJobs, searchedQuery])
+
+    const totalPages = Math.max(1, pagination?.totalPages || 1);
+
+    const getVisiblePages = (currentPage, pages, maxButtons = 5) => {
+        if (pages <= maxButtons) {
+            return Array.from({ length: pages }, (_, idx) => idx + 1);
+        }
+
+        const half = Math.floor(maxButtons / 2);
+        let start = Math.max(1, currentPage - half);
+        let end = Math.min(pages, start + maxButtons - 1);
+
+        if (end - start + 1 < maxButtons) {
+            start = Math.max(1, end - maxButtons + 1);
+        }
+
+        return Array.from({ length: end - start + 1 }, (_, idx) => start + idx);
+    };
+
+    const visiblePages = getVisiblePages(page, totalPages);
 
     return (
         <div className="min-h-screen bg-[#F5F6FA]">
@@ -58,7 +84,7 @@ const Jobs = () => {
                                 <div>
                                     <h2 className='text-2xl font-extrabold tracking-tight'>Available Jobs</h2>
                                     <p className='text-sm text-muted-foreground font-medium'>
-                                        Showing <span className='text-primary font-bold'>{filterJobs.length}</span> positions match your criteria
+                                        Showing <span className='text-primary font-bold'>{filterJobs.length}</span> positions on this page
                                     </p>
                                 </div>
                             </div>
@@ -94,6 +120,38 @@ const Jobs = () => {
                                                 <Job job={job} />
                                             </motion.div>
                                         ))}
+                                    </div>
+
+                                    <div className='flex items-center justify-center gap-3 pb-4'>
+                                        <Button
+                                            variant='outline'
+                                            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                                            disabled={page <= 1 || loading}
+                                        >
+                                            Previous
+                                        </Button>
+
+                                        <div className='flex items-center gap-2'>
+                                            {visiblePages.map((pageNumber) => (
+                                                <Button
+                                                    key={pageNumber}
+                                                    variant={pageNumber === page ? 'default' : 'outline'}
+                                                    onClick={() => setPage(pageNumber)}
+                                                    disabled={loading}
+                                                    className='h-9 min-w-9 px-3'
+                                                >
+                                                    {pageNumber}
+                                                </Button>
+                                            ))}
+                                        </div>
+
+                                        <Button
+                                            variant='outline'
+                                            onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                                            disabled={page >= totalPages || loading}
+                                        >
+                                            Next
+                                        </Button>
                                     </div>
                                 </div>
                             )

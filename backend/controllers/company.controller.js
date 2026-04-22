@@ -1,6 +1,5 @@
 import { Company } from "../models/company.model.js";
-import getDataUri from "../utils/datauri.js";
-import cloudinary from "../utils/cloudinary.js";
+import { uploadToImageKit } from "../utils/imagekit.js";
 
 export const registerCompany = async (req, res) => {
     try {
@@ -128,9 +127,11 @@ export const updateCompany = async (req, res) => {
         let logo;
 
         if (file) {
-            const fileUri = getDataUri(file);
-            const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
-            logo = cloudResponse.secure_url;
+            const logoUpload = await uploadToImageKit({
+                file,
+                folder: "/company_logos",
+            });
+            logo = logoUpload?.url || "";
         }
 
         const updateData = { name, description, website, location };

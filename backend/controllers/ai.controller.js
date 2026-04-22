@@ -16,7 +16,7 @@ export const extractProfileSkills = async (req, res) => {
                 message: "User not found.",
                 success: false,
             });
-        }
+        }  
 
         const currentSkills = Array.isArray(user.profile?.skills) ? user.profile.skills.join(", ") : "";
         const profileText = [

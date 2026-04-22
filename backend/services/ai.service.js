@@ -6,7 +6,17 @@ import { deleteVector } from "./pinecone.service.js";
 
 const SKILL_MODEL = process.env.GEMINI_TEXT_MODEL || "gemini-2.0-flash";
 
-const ai = process.env.GEMINI_API_KEY ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }) : null;
+let aiClient = null;
+
+const getTextAiClient = () => {
+    if (aiClient) return aiClient;
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return null;
+
+    aiClient = new GoogleGenAI({ apiKey });
+    return aiClient;
+};
 
 const isQuotaError = (error) => {
     const raw = JSON.stringify(error || {}).toLowerCase();
@@ -27,6 +37,8 @@ const SKILL_ALIASES = {
     "node.js": ["nodejs", "node.js", "node"],
     "tailwindcss": ["tailwindcss", "tailwind", "tailwind css"],
     "tailwind": ["tailwindcss", "tailwind", "tailwind css"],
+    "panda": ["panda", "pandas"],
+    "pandas": ["pandas", "panda"],
     "mern": ["mern", "mern stack", "mongodb", "express", "react", "nodejs", "node.js"],
     "mern stack": ["mern", "mern stack", "mongodb", "express", "react", "nodejs", "node.js"],
 };
@@ -35,7 +47,30 @@ const canonicalSkill = (skill) => {
     const s = String(skill || "").trim().toLowerCase().replace(/\s+/g, " ");
     if (s === "nodejs" || s === "node") return "node.js";
     if (s === "tailwind css") return "tailwindcss";
+    if (s === "panda") return "pandas";
     return s;
+};
+
+const getJobSearchText = (job) => {
+    return [
+        job.title || "",
+        job.description || "",
+        ...(Array.isArray(job.requirements) ? job.requirements : []),
+    ]
+        .join(" ")
+        .toLowerCase();
+};
+
+const computeSkillMatchScore = (job, normalizedSkills = []) => {
+    if (!normalizedSkills.length) return 0;
+    const hay = getJobSearchText(job);
+
+    const matched = normalizedSkills.filter((skill) => {
+        const escapedSkill = skill.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        return new RegExp(`(^|[^a-z0-9+.#-])${escapedSkill}([^a-z0-9+.#-]|$)`, "i").test(hay);
+    }).length;
+
+    return matched / normalizedSkills.length;
 };
 
 const expandSkills = (skills = []) => {
@@ -91,20 +126,7 @@ const fallbackJobRecommendationsFromSkills = async (skills = [], topK = 15) => {
         .limit(topK);
 
     return jobs.map((job) => {
-        const hay = [
-            job.title || "",
-            job.description || "",
-            ...(Array.isArray(job.requirements) ? job.requirements : []),
-        ]
-            .join(" ")
-            .toLowerCase();
-
-        const matched = normalized.filter((skill) => {
-            const escapedSkill = skill.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            return new RegExp(`(^|[^a-z0-9+.#-])${escapedSkill}([^a-z0-9+.#-]|$)`, "i").test(hay);
-        }).length;
-
-        const score = normalized.length ? matched / normalized.length : 0;
+        const score = computeSkillMatchScore(job, normalized);
         return {
             ...job.toObject(),
             matchScore: Number(score.toFixed(4)),
@@ -158,6 +180,7 @@ export const getEmbedding = async (text) => {
 };
 
 export const extractSkillsFromProfileText = async (inputText) => {
+    const ai = getTextAiClient();
     if (!ai) {
         return fallbackExtractSkills(inputText);
     }
@@ -256,25 +279,58 @@ export const getJobRecommendationsFromSkills = async (skills = [], topK = 15) =>
     }
 
     const ids = (matches || []).map((match) => String(match.id || match?.metadata?.jobId || "")).filter(Boolean);
-    if (!ids.length) return [];
-
-    console.log("AI RECOMMENDATIONS SOURCE: vector-ai");
+    if (!ids.length) {
+        console.log("AI RECOMMENDATIONS SOURCE: mongodb-fallback");
+        return fallbackJobRecommendationsFromSkills(normalized, topK);
+    }
 
     const scoreById = new Map((matches || []).map((match) => [String(match.id || match?.metadata?.jobId || ""), match.score || 0]));
 
     const jobs = await Job.find({ _id: { $in: ids } }).populate("company");
     const jobsById = new Map(jobs.map((job) => [String(job._id), job]));
 
-    return ids
+    const vectorResults = ids
         .map((id) => {
             const job = jobsById.get(id);
             if (!job) return null;
+
+            const vectorScore = Number((scoreById.get(id) || 0).toFixed(4));
+            const lexicalScore = Number(computeSkillMatchScore(job, normalized).toFixed(4));
+            const combinedScore = Number((lexicalScore * 0.7 + vectorScore * 0.3).toFixed(4));
+
             return {
                 ...job.toObject(),
-                matchScore: Number((scoreById.get(id) || 0).toFixed(4)),
+                matchScore: combinedScore,
+                lexicalScore,
+                vectorScore,
             };
         })
         .filter(Boolean);
+
+    const fallbackResults = await fallbackJobRecommendationsFromSkills(normalized, topK);
+    const merged = new Map();
+
+    for (const job of fallbackResults) {
+        merged.set(String(job._id), job);
+    }
+
+    for (const job of vectorResults) {
+        const existing = merged.get(String(job._id));
+        if (!existing || (job.matchScore || 0) > (existing.matchScore || 0)) {
+            merged.set(String(job._id), job);
+        }
+    }
+
+    const ranked = [...merged.values()]
+        .sort((a, b) => {
+            const scoreDiff = (b.matchScore || 0) - (a.matchScore || 0);
+            if (scoreDiff !== 0) return scoreDiff;
+            return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+        })
+        .slice(0, topK);
+
+    console.log("AI RECOMMENDATIONS SOURCE: hybrid-vector+mongodb");
+    return ranked;
 };
 
 export const getLatestJobs = async (limit = 8) => {

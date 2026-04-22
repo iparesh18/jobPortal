@@ -1,10 +1,19 @@
 import { Pinecone } from "@pinecone-database/pinecone";
 
-const pc = process.env.PINECONE_API_KEY
-    ? new Pinecone({ apiKey: process.env.PINECONE_API_KEY })
-    : null;
+let pineconeClient = null;
+
+const getPineconeClient = () => {
+    if (pineconeClient) return pineconeClient;
+
+    const apiKey = process.env.PINECONE_API_KEY;
+    if (!apiKey) return null;
+
+    pineconeClient = new Pinecone({ apiKey });
+    return pineconeClient;
+};
 
 const getIndex = () => {
+    const pc = getPineconeClient();
     if (!pc || !process.env.PINECONE_INDEX_NAME) return null;
 
     if (process.env.PINECONE_HOST) {

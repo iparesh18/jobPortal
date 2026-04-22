@@ -10,6 +10,7 @@ import { USER_API_END_POINT } from '@/utils/constant'
 import { toast } from 'sonner'
 import { useDispatch, useSelector } from 'react-redux'
 import { setLoading, setUser } from '@/redux/authSlice'
+import { setAllAppliedJobs } from '@/redux/jobSlice'
 import { Loader2, Mail, Lock, UserCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Briefcase } from "lucide-react";
@@ -42,6 +43,7 @@ const Login = () => {
                 withCredentials: true,
             });
             if (res.data.success) {
+                dispatch(setAllAppliedJobs([]));
                 dispatch(setUser(res.data.user));
                 navigate("/");
                 toast.success(res.data.message);

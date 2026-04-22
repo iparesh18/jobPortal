@@ -3,11 +3,20 @@ import { GoogleGenAI } from "@google/genai";
 const EMBEDDING_MODEL = "gemini-embedding-001";
 const EMBEDDING_DIM = 768;
 
-const ai = process.env.GEMINI_API_KEY
-    ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
-    : null;
+let aiClient = null;
+
+const getGeminiClient = () => {
+    if (aiClient) return aiClient;
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return null;
+
+    aiClient = new GoogleGenAI({ apiKey });
+    return aiClient;
+};
 
 export async function generateVector(content) {
+    const ai = getGeminiClient();
     if (!ai) {
         throw new Error("Gemini client is not configured");
     }

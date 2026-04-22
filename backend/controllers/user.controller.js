@@ -1,8 +1,7 @@
 import { User } from "../models/user.model.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import getDataUri from "../utils/datauri.js";
-import cloudinary from "../utils/cloudinary.js";
+import { uploadToImageKit } from "../utils/imagekit.js";
 
 export const register = async (req, res) => {
   try {
@@ -25,23 +24,12 @@ export const register = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    let cloudResponse = null;
+    let profileUpload = null;
 
     if (req.file) {
-      cloudResponse = await new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          {
-            resource_type: "auto",
-            type: "upload",
-            folder: "profile_photos",
-          },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
-          }
-        );
-
-        stream.end(req.file.buffer);
+      profileUpload = await uploadToImageKit({
+        file: req.file,
+        folder: "/profile_photos",
       });
     }
 const user = await User.create({
@@ -51,7 +39,7 @@ const user = await User.create({
   password: hashedPassword,
   role,
   profile: {
-    profilePhoto: cloudResponse ? cloudResponse.secure_url : "",
+    profilePhoto: profileUpload ? profileUpload.url : "",
   },
 });
     return res.status(201).json({
@@ -164,36 +152,20 @@ export const updateProfile = async (req, res) => {
     const file = req.file;
 
     // ✅ FIX: only upload if file exists
-    let cloudResponse = null;
+    let resumeUpload = null;
     if (file) {
-      const streamUpload = () => {
-        return new Promise((resolve, reject) => {
-          const stream = cloudinary.uploader.upload_stream(
-            {
-              resource_type: "auto", // 🔥 BEST OPTION
-              type: "upload", // 🔥 MUST be upload
-              folder: "resumes",
-              access_mode: "public",
-            },
-            (error, result) => {
-              if (result) resolve(result);
-              else reject(error);
-            },
-          );
-
-          stream.end(file.buffer);
-        });
-      };
-
-      cloudResponse = await streamUpload();
+      resumeUpload = await uploadToImageKit({
+        file,
+        folder: "/resumes",
+      });
     }
 
     let skillsArray;
 
     if (skills) {
       skillsArray = skills
-        .split(",")
-        .map((item) => item.trim())
+        .split(/\s*(?:,|\n|&|\band\b)\s*/i)
+        .map((item) => item.trim().toLowerCase())
         .filter(Boolean);
     }
 
@@ -214,8 +186,8 @@ export const updateProfile = async (req, res) => {
     if (bio) user.profile.bio = bio;
     if (skills) user.profile.skills = skillsArray;
 
-    if (cloudResponse) {
-      user.profile.resume = cloudResponse.secure_url;
+    if (resumeUpload) {
+      user.profile.resume = resumeUpload.url;
       user.profile.resumeOriginalName = file.originalname;
     }
 
