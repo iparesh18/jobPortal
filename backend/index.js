@@ -22,20 +22,56 @@ app.use(express.json());
 app.use(express.urlencoded({extended:true}));
 app.use(cookieParser());
 
-const allowedOrigins = [
+const toOrigin = (value) => {
+    if (!value) return "";
+    const trimmed = String(value).trim();
+    if (!trimmed) return "";
+    try {
+        return new URL(trimmed).origin;
+    } catch {
+        return trimmed.replace(/\/+$/, "");
+    }
+};
+
+const rawAllowedOriginValues = [
     process.env.FRONTEND_URL,
     process.env.FRONTEND_PREVIEW_URL,
-].filter(Boolean);
+]
+    .filter(Boolean)
+    .flatMap((value) => String(value).split(","))
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+const exactAllowedOrigins = new Set(
+    rawAllowedOriginValues
+        .filter((value) => !value.includes("*"))
+        .map((value) => toOrigin(value))
+        .filter(Boolean)
+);
+
+const wildcardAllowedOriginRegex = rawAllowedOriginValues
+    .filter((value) => value.includes("*"))
+    .map((value) => {
+        const normalized = toOrigin(value);
+        const escaped = normalized.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+        return new RegExp(`^${escaped}$`, "i");
+    });
 
 // Allow frontend from configured origins and localhost during development.
 const corsOptions = {
     origin: (origin, callback) => {
         if (!origin) return callback(null, true); // allow curl/postman or same-origin
+
         try {
-            const url = new URL(origin);
+            const normalizedOrigin = toOrigin(origin);
+            const url = new URL(normalizedOrigin);
+
             if (url.hostname === 'localhost') return callback(null, true);
-            if (allowedOrigins.includes(origin)) return callback(null, true);
+            if (exactAllowedOrigins.has(normalizedOrigin)) return callback(null, true);
+            if (wildcardAllowedOriginRegex.some((regex) => regex.test(normalizedOrigin))) return callback(null, true);
         } catch (e) {}
+
+        console.log("CORS BLOCKED ORIGIN:", origin);
         callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
