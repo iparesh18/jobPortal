@@ -15,13 +15,13 @@ const router = express.Router();
 router.post("/post", isAuthenticated, postJob);
 
 // GET ALL
-router.get("/get", isAuthenticated, getAllJobs);
+router.get("/get", getAllJobs);
 
 // GET ADMIN
 router.get("/getadminjobs", isAuthenticated, getAdminJobs);
 
 // GET SINGLE
-router.get("/get/:id", isAuthenticated, getJobById);
+router.get("/get/:id", getJobById);
 
 // UPDATE (IMPORTANT CHANGE)
 router.put("/update/:id", isAuthenticated, updateJob);

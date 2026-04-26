@@ -37,7 +37,6 @@ const useGetAllJobs = ({ page = 1, limit = 20 } = {}) => {
 
                 const res = await axios.get(`${JOB_API_END_POINT}/get`, {
                     params,
-                    withCredentials: true,
                 });
 
                 if (res.data.success) {
@@ -52,7 +51,7 @@ const useGetAllJobs = ({ page = 1, limit = 20 } = {}) => {
                     );
                 }
             } catch (error) {
-                console.log(error);
+                console.error("Error fetching jobs:", error);
             } finally {
                 setLoading(false);
             }
